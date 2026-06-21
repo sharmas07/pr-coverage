@@ -1,0 +1,1 @@
+{"version":3,"file":"diff.js","sourceRoot":"","sources":["../../src/git/diff.ts"],"names":[],"mappings":"AAAA,OAAO,EAAE,QAAQ,EAAE,MAAM,oBAAoB,CAAC;AAE9C,MAAM,UAAU,UAAU;IACxB,OAAO,QAAQ,CAAC,kCAAkC,EAAE;QAClD,QAAQ,EAAE,OAAO;KAClB,CAAC,CAAC;AACL,CAAC"}
