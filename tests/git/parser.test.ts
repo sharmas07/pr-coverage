@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { parseChangedLines, parseFiles } from "../../src/git/parser.ts";
+import { isImportLine, parseChangedLines, parseFiles } from "../../src/git/parser.ts";
 
 function toObject(map: Map<string, Set<number>>): Record<string, number[]> {
   return Object.fromEntries(
@@ -56,5 +56,30 @@ test("parseChangedLines handles single-line hunks without explicit counts", () =
 
   assert.deepEqual(toObject(parseChangedLines(diffText)), {
     "src/example.ts": [9],
+  });
+});
+
+test("isImportLine detects ESM import statements", () => {
+  assert.equal(isImportLine('+import { foo } from "./foo";'), true);
+  assert.equal(isImportLine('+import type { Foo } from "./foo";'), true);
+  assert.equal(isImportLine('+  import { foo } from "./foo";'), true);
+  assert.equal(isImportLine('+import "./styles.css";'), true);
+  assert.equal(isImportLine('+const foo = 1;'), false);
+  assert.equal(isImportLine('+export { foo };'), false);
+});
+
+test("parseChangedLines ignores added import lines", () => {
+  const diffText = [
+    "diff --git a/src/user.ts b/src/user.ts",
+    "@@ -10,0 +11,4 @@",
+    '+import { helper } from "./helper";',
+    "+const a = 1;",
+    "+const b = 2;",
+    '+import { another } from "./another";',
+    "+const c = 3;",
+  ].join("\n");
+
+  assert.deepEqual(toObject(parseChangedLines(diffText)), {
+    "src/user.ts": [12, 13, 15],
   });
 });

@@ -1,3 +1,18 @@
+import { extname } from "node:path";
+
+const SOURCE_EXTENSIONS = new Set([
+  ".ts",
+  ".tsx",
+  ".js",
+  ".jsx",
+  ".mjs",
+  ".cjs",
+]);
+
+export function isSourceFile(filePath: string): boolean {
+  return SOURCE_EXTENSIONS.has(extname(filePath).toLowerCase());
+}
+
 function parseDiffFileHeader(line: string): string | null {
   const match = line.match(/^diff --git a\/(.+?) b\/(.+)$/);
 
@@ -28,6 +43,17 @@ function getOrCreateFileLines(
   return fileLines;
 }
 
+export function isNonExecutableLine(line: string): boolean {
+  const content = line.slice(1);
+  return (
+    /^\s*import\b/.test(content) ||
+    /^\s*require\s*\(/.test(content) ||
+    /^\s*export\s+type\b/.test(content) ||
+    /^\s*export\s+interface\b/.test(content) ||
+    /^\s*export\s*\{[^}]*\}\s*from\b/.test(content)
+  );
+}
+
 export function parseFiles(diffText: string): string[] {
   const files: string[] = [];
   const seenFiles = new Set<string>();
@@ -53,7 +79,7 @@ export function parseChangedLines(diffText: string): Map<string, Set<number>> {
     const filePath = parseDiffFileHeader(line);
 
     if (filePath) {
-      currentFile = filePath;
+      currentFile = isSourceFile(filePath) ? filePath : null;
       currentLine = null;
       continue;
     }
@@ -74,7 +100,9 @@ export function parseChangedLines(diffText: string): Map<string, Set<number>> {
     }
 
     if (line.startsWith("+")) {
-      getOrCreateFileLines(changedLines, currentFile).add(currentLine);
+      if (!isNonExecutableLine(line)) {
+        getOrCreateFileLines(changedLines, currentFile).add(currentLine);
+      }
       currentLine += 1;
       continue;
     }
