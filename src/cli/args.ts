@@ -2,6 +2,8 @@ export interface CliOptions {
   base: string;
   coverage: string;
   min: number;
+  minBranches?: number;
+  minFunctions?: number;
 }
 
 export function parseArgs(args: string[]): CliOptions {
@@ -24,6 +26,18 @@ export function parseArgs(args: string[]): CliOptions {
     } else if (arg === "--min" && nextArg) {
       const parsedMin = Number(nextArg);
       options.min = Number.isNaN(parsedMin) ? 80 : parsedMin;
+      i += 1;
+    } else if (arg === "--min-branches" && nextArg) {
+      const parsedMin = Number(nextArg);
+      if (!Number.isNaN(parsedMin)) {
+        options.minBranches = parsedMin;
+      }
+      i += 1;
+    } else if (arg === "--min-functions" && nextArg) {
+      const parsedMin = Number(nextArg);
+      if (!Number.isNaN(parsedMin)) {
+        options.minFunctions = parsedMin;
+      }
       i += 1;
     }
   }

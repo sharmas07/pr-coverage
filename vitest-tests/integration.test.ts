@@ -1,11 +1,19 @@
 import { describe, expect, it } from "vitest";
 import { parseChangedLines, parseFiles, isSourceFile, isNonExecutableLine } from "../src/git/parser.js";
-import { parseCoverageJson } from "../src/coverage/parser.js";
+import { parseCoverageJson, type LineCoverage } from "../src/coverage/parser.js";
 import { normalizePath, normalizeChangedLines, normalizeCoverage } from "../src/utils/pathNormalizer.js";
 import { analyzeCoverage } from "../src/analyzer/analyzer.js";
 import { formatReport } from "../src/reporter/reporter.js";
 import { parseArgs } from "../src/cli/args.js";
 import { resolveBaseBranch } from "../src/git/diff.js";
+
+function createLine(
+  isStatementCovered: boolean = true,
+  branches: { total: number; covered: number }[] = [],
+  isFunctionCovered: boolean | null = null
+): LineCoverage {
+  return { isStatementCovered, branches, isFunctionCovered };
+}
 
 describe("git parser", () => {
   it("parses changed files", () => {
@@ -127,8 +135,8 @@ describe("coverage parser", () => {
     };
 
     const coverage = parseCoverageJson(coverageJson);
-    expect(coverage.get("/project/src/user.ts")?.get(11)).toBe(true);
-    expect(coverage.get("/project/src/user.ts")?.get(12)).toBe(false);
+    expect(coverage.get("/project/src/user.ts")?.get(11)?.isStatementCovered).toBe(true);
+    expect(coverage.get("/project/src/user.ts")?.get(12)?.isStatementCovered).toBe(false);
   });
 
   it("parses statement coverage with multi-line statements", () => {
@@ -147,13 +155,35 @@ describe("coverage parser", () => {
     const fileCoverage = coverage.get("/project/src/user.ts")!;
 
     // Multi-line statement (lines 3-6) should all be covered
-    expect(fileCoverage.get(3)).toBe(true);
-    expect(fileCoverage.get(4)).toBe(true);
-    expect(fileCoverage.get(5)).toBe(true);
-    expect(fileCoverage.get(6)).toBe(true);
+    expect(fileCoverage.get(3)?.isStatementCovered).toBe(true);
+    expect(fileCoverage.get(4)?.isStatementCovered).toBe(true);
+    expect(fileCoverage.get(5)?.isStatementCovered).toBe(true);
+    expect(fileCoverage.get(6)?.isStatementCovered).toBe(true);
 
     // Single-line uncovered statement
-    expect(fileCoverage.get(8)).toBe(false);
+    expect(fileCoverage.get(8)?.isStatementCovered).toBe(false);
+  });
+
+  it("parses branch and function coverage", () => {
+    const coverageJson = {
+      "/project/src/user.ts": {
+        path: "/project/src/user.ts",
+        branchMap: {
+          "0": { line: 10, type: "if", locations: [{ start: { line: 10 }, end: { line: 10 } }, { start: { line: 10 }, end: { line: 10 } }] },
+        },
+        b: { "0": [1, 0] },
+        fnMap: {
+          "0": { name: "foo", line: 20, loc: { start: { line: 20 }, end: { line: 20 } } },
+        },
+        f: { "0": 1 },
+      },
+    };
+
+    const coverage = parseCoverageJson(coverageJson);
+    const fileCoverage = coverage.get("/project/src/user.ts")!;
+
+    expect(fileCoverage.get(10)?.branches).toEqual([{ total: 2, covered: 1 }]);
+    expect(fileCoverage.get(20)?.isFunctionCovered).toBe(true);
   });
 });
 
@@ -174,8 +204,8 @@ describe("path normalizer", () => {
   });
 
   it("normalizes maps of coverage", () => {
-    const coverage = new Map<string, Map<number, boolean>>([
-      ["/Users/apple/project/src/user.ts", new Map([[11, true]])],
+    const coverage = new Map<string, Map<number, LineCoverage>>([
+      ["/Users/apple/project/src/user.ts", new Map([[11, createLine()]])],
     ]);
 
     const normalized = normalizeCoverage(coverage, "/Users/apple/project");
@@ -189,29 +219,29 @@ describe("analyzer", () => {
       ["src/user.ts", new Set([11, 12, 13])],
     ]);
 
-    const coverage = new Map<string, Map<number, boolean>>([
-      ["src/user.ts", new Map([[11, true], [12, true], [13, false]])],
+    const coverage = new Map<string, Map<number, LineCoverage>>([
+      ["src/user.ts", new Map([
+        [11, createLine(true)], 
+        [12, createLine(true)], 
+        [13, createLine(false)]
+      ])],
     ]);
 
     const analysis = analyzeCoverage(changedLines, coverage);
     expect(analysis.coveragePercent).toBe(67);
-    expect(analysis.uncovered).toEqual([{ file: "src/user.ts", line: 13 }]);
+    expect(analysis.uncovered).toEqual([{ file: "src/user.ts", line: 13, reason: "statement" }]);
   });
 
   it("skips non-instrumentable lines in tracked files", () => {
-    // Lines 11, 12, 13 are changed. Coverage only tracks 11 and 13.
-    // Line 12 is a comment/type/blank — not tracked by instrumenter.
     const changedLines = new Map<string, Set<number>>([
       ["src/user.ts", new Set([11, 12, 13])],
     ]);
 
-    const coverage = new Map<string, Map<number, boolean>>([
-      ["src/user.ts", new Map([[11, true], [13, true]])],
-      // Line 12 is NOT in the map — it's non-instrumentable
+    const coverage = new Map<string, Map<number, LineCoverage>>([
+      ["src/user.ts", new Map([[11, createLine(true)], [13, createLine(true)]])],
     ]);
 
     const analysis = analyzeCoverage(changedLines, coverage);
-    // Only 2 lines counted (11 and 13), both covered → 100%
     expect(analysis.changedLines).toBe(2);
     expect(analysis.coveredLines).toBe(2);
     expect(analysis.coveragePercent).toBe(100);
@@ -222,7 +252,7 @@ describe("analyzer", () => {
       ["src/newFile.ts", new Set([1, 2, 3])],
     ]);
 
-    const coverage = new Map<string, Map<number, boolean>>();
+    const coverage = new Map<string, Map<number, LineCoverage>>();
 
     const analysis = analyzeCoverage(changedLines, coverage);
     expect(analysis.changedLines).toBe(3);
@@ -231,37 +261,62 @@ describe("analyzer", () => {
     expect(analysis.uncovered.length).toBe(3);
   });
 
-  it("excludes files where all changed lines are non-instrumentable", () => {
+  it("analyzes branch and function coverage", () => {
     const changedLines = new Map<string, Set<number>>([
-      ["src/types.ts", new Set([1, 2, 3])],
+      ["src/user.ts", new Set([10, 20])],
     ]);
 
-    // File is tracked but none of the changed lines are instrumented
-    const coverage = new Map<string, Map<number, boolean>>([
-      ["src/types.ts", new Map([[10, true]])], // Only line 10 tracked, not 1-3
+    const coverage = new Map<string, Map<number, LineCoverage>>([
+      ["src/user.ts", new Map([
+        [10, createLine(true, [{ total: 2, covered: 1 }])], // Missed branch
+        [20, createLine(true, [], true)], // Covered function
+      ])],
     ]);
 
     const analysis = analyzeCoverage(changedLines, coverage);
-    expect(analysis.changedFiles).toBe(0); // File excluded from report
-    expect(analysis.changedLines).toBe(0);
-    expect(analysis.coveragePercent).toBe(0);
+    
+    // Line 10 missed a branch, so line 10 is uncovered overall.
+    expect(analysis.coveredLines).toBe(1); // Only line 20 is fully covered
+    expect(analysis.coveragePercent).toBe(50);
+    
+    expect(analysis.branchesTotal).toBe(2);
+    expect(analysis.branchesCovered).toBe(1);
+    expect(analysis.branchPercent).toBe(50);
+
+    expect(analysis.functionsTotal).toBe(1);
+    expect(analysis.functionsCovered).toBe(1);
+    expect(analysis.functionPercent).toBe(100);
+    
+    expect(analysis.uncovered).toEqual([{ file: "src/user.ts", line: 10, reason: "branch" }]);
   });
 });
 
 describe("reporter", () => {
-  it("formats report", () => {
+  it("formats report with branch and function coverage", () => {
     const analysis = {
       changedFiles: 1,
       changedLines: 3,
       coveredLines: 2,
       coveragePercent: 67,
-      uncovered: [{ file: "src/user.ts", line: 13 }],
-      files: [{ file: "src/user.ts", changed: 3, covered: 2, uncovered: [13] }],
+      branchesTotal: 4,
+      branchesCovered: 2,
+      branchPercent: 50,
+      functionsTotal: 1,
+      functionsCovered: 1,
+      functionPercent: 100,
+      uncovered: [
+        { file: "src/user.ts", line: 13, reason: "statement" as const },
+        { file: "src/user.ts", line: 15, reason: "branch" as const },
+      ],
+      files: [{ file: "src/user.ts", changed: 3, covered: 2, uncovered: [13, 15], branchesTotal: 4, branchesCovered: 2, functionsTotal: 1, functionsCovered: 1 }],
     };
 
     const report = formatReport(analysis);
-    expect(report).toContain("PR Coverage: 67%");
+    expect(report).toContain("PR Coverage (Lines): 67%");
+    expect(report).toContain("PR Coverage (Branches): 50% (2/4)");
+    expect(report).toContain("PR Coverage (Functions): 100% (1/1)");
     expect(report).toContain("src/user.ts:13");
+    expect(report).toContain("src/user.ts:15 (Missing branch coverage)");
   });
 });
 
@@ -274,11 +329,13 @@ describe("cli args", () => {
     });
   });
 
-  it("parses flags", () => {
-    expect(parseArgs(["--base", "develop", "--min", "90"])).toEqual({
+  it("parses all flags", () => {
+    expect(parseArgs(["--base", "develop", "--min", "90", "--min-branches", "85", "--min-functions", "95"])).toEqual({
       base: "develop",
       coverage: "coverage/coverage-final.json",
       min: 90,
+      minBranches: 85,
+      minFunctions: 95,
     });
   });
 });

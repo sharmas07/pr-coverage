@@ -1,4 +1,5 @@
 import { isAbsolute, relative, normalize } from "node:path";
+import type { LineCoverage } from "../coverage/parser.js";
 
 export function normalizePath(filePath: string, projectRoot: string): string {
   const normalizedRoot = normalize(projectRoot).replace(/\\/g, "/");
@@ -26,10 +27,10 @@ export function normalizeChangedLines(
 }
 
 export function normalizeCoverage(
-  coverage: Map<string, Map<number, boolean>>,
+  coverage: Map<string, Map<number, LineCoverage>>,
   projectRoot: string,
-): Map<string, Map<number, boolean>> {
-  const result = new Map<string, Map<number, boolean>>();
+): Map<string, Map<number, LineCoverage>> {
+  const result = new Map<string, Map<number, LineCoverage>>();
 
   for (const [filePath, lineCoverage] of coverage) {
     result.set(normalizePath(filePath, projectRoot), lineCoverage);

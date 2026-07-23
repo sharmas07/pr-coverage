@@ -107,6 +107,16 @@ async function main(): Promise<void> {
       process.exit(1);
     }
 
+    const minBranches = options.minBranches ?? options.min;
+    if (analysis.branchesTotal > 0 && analysis.branchPercent < minBranches) {
+      process.exit(1);
+    }
+
+    const minFunctions = options.minFunctions ?? options.min;
+    if (analysis.functionsTotal > 0 && analysis.functionPercent < minFunctions) {
+      process.exit(1);
+    }
+
     process.exit(0);
   } catch (error) {
     stopSpinner(spinner, "Analysis failed", "error");
