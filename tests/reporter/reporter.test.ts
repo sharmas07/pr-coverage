@@ -10,13 +10,37 @@ function makeAnalysis(overrides: Partial<CoverageAnalysis> = {}): CoverageAnalys
     changedLines: 5,
     coveredLines: 3,
     coveragePercent: 60,
+    branchesTotal: 0,
+    branchesCovered: 0,
+    branchPercent: 100,
+    functionsTotal: 0,
+    functionsCovered: 0,
+    functionPercent: 100,
     uncovered: [
-      { file: "src/auth.ts", line: 23 },
-      { file: "src/user.ts", line: 13 },
+      { file: "src/auth.ts", line: 23, reason: "statement" },
+      { file: "src/user.ts", line: 13, reason: "statement" },
     ],
     files: [
-      { file: "src/user.ts", changed: 3, covered: 2, uncovered: [13] },
-      { file: "src/auth.ts", changed: 2, covered: 1, uncovered: [23] },
+      {
+        file: "src/user.ts",
+        changed: 3,
+        covered: 2,
+        uncovered: [13],
+        branchesTotal: 0,
+        branchesCovered: 0,
+        functionsTotal: 0,
+        functionsCovered: 0,
+      },
+      {
+        file: "src/auth.ts",
+        changed: 2,
+        covered: 1,
+        uncovered: [23],
+        branchesTotal: 0,
+        branchesCovered: 0,
+        functionsTotal: 0,
+        functionsCovered: 0,
+      },
     ],
     ...overrides,
   };
@@ -30,9 +54,9 @@ test("formatReport renders summary and uncovered lines", () => {
     "Changed lines: 5",
     "Covered lines: 3",
     "",
-    "PR Coverage: 60%",
+    "PR Coverage (Lines): 60%",
     "",
-    "Uncovered:",
+    "Uncovered Lines/Branches:",
     "src/auth.ts:23",
     "src/user.ts:13",
   ].join("\n");
@@ -52,7 +76,7 @@ test("formatReport omits uncovered section when none exist", () => {
     "Changed lines: 5",
     "Covered lines: 5",
     "",
-    "PR Coverage: 100%",
+    "PR Coverage (Lines): 100%",
   ].join("\n");
 
   assert.equal(formatReport(analysis), expected);
@@ -73,7 +97,7 @@ test("formatReport handles zero changed lines", () => {
     "Changed lines: 0",
     "Covered lines: 0",
     "",
-    "PR Coverage: 0%",
+    "PR Coverage (Lines): 0%",
   ].join("\n");
 
   assert.equal(formatReport(analysis), expected);

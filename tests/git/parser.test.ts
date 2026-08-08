@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { isImportLine, parseChangedLines, parseFiles } from "../../src/git/parser.ts";
+import { isNonExecutableLine, parseChangedLines, parseFiles } from "../../src/git/parser.ts";
 
 function toObject(map: Map<string, Set<number>>): Record<string, number[]> {
   return Object.fromEntries(
@@ -59,13 +59,16 @@ test("parseChangedLines handles single-line hunks without explicit counts", () =
   });
 });
 
-test("isImportLine detects ESM import statements", () => {
-  assert.equal(isImportLine('+import { foo } from "./foo";'), true);
-  assert.equal(isImportLine('+import type { Foo } from "./foo";'), true);
-  assert.equal(isImportLine('+  import { foo } from "./foo";'), true);
-  assert.equal(isImportLine('+import "./styles.css";'), true);
-  assert.equal(isImportLine('+const foo = 1;'), false);
-  assert.equal(isImportLine('+export { foo };'), false);
+test("isNonExecutableLine detects import and type-only export statements", () => {
+  assert.equal(isNonExecutableLine('+import { foo } from "./foo";'), true);
+  assert.equal(isNonExecutableLine('+import type { Foo } from "./foo";'), true);
+  assert.equal(isNonExecutableLine('+  import { foo } from "./foo";'), true);
+  assert.equal(isNonExecutableLine('+import "./styles.css";'), true);
+  assert.equal(isNonExecutableLine("+export type Foo = string;"), true);
+  assert.equal(isNonExecutableLine("+export interface Foo {}"), true);
+  assert.equal(isNonExecutableLine('+export { foo } from "./foo";'), true);
+  assert.equal(isNonExecutableLine("+const foo = 1;"), false);
+  assert.equal(isNonExecutableLine("+export { foo };"), false);
 });
 
 test("parseChangedLines ignores added import lines", () => {

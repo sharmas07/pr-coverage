@@ -1,6 +1,7 @@
 #!/usr/bin/env node
-import { execFile } from "node:child_process";
+import { execFile, type ExecFileException } from "node:child_process";
 import { readFileSync } from "node:fs";
+import { pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 import { getRawDiff, getRepoRoot } from "./git/diff.js";
 import { parseChangedLines } from "./git/parser.js";
@@ -22,7 +23,45 @@ const COLORS = {
 
 const FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
 
-function startSpinner(message: string): NodeJS.Timeout {
+interface Spinner {
+  stop(message: string, status?: "success" | "error"): void;
+}
+
+export interface CliDeps {
+  readFileSync: typeof readFileSync;
+  execFile: (command: string, args: string[]) => Promise<void>;
+  getRawDiff: typeof getRawDiff;
+  getRepoRoot: typeof getRepoRoot;
+  parseChangedLines: typeof parseChangedLines;
+  readCoverageFile: typeof readCoverageFile;
+  normalizeChangedLines: typeof normalizeChangedLines;
+  normalizeCoverage: typeof normalizeCoverage;
+  analyzeCoverage: typeof analyzeCoverage;
+  printReport: typeof printReport;
+  startSpinner: (message: string) => Spinner;
+  log: (message: string) => void;
+  error: (message: string) => void;
+}
+
+export const defaultDeps: CliDeps = {
+  readFileSync,
+  execFile: async (command, args) => {
+    await execFileAsync(command, args);
+  },
+  getRawDiff,
+  getRepoRoot,
+  parseChangedLines,
+  readCoverageFile,
+  normalizeChangedLines,
+  normalizeCoverage,
+  analyzeCoverage,
+  printReport,
+  startSpinner,
+  log: console.log,
+  error: console.error,
+};
+
+function startSpinner(message: string): Spinner {
   let index = 0;
 
   const interval = setInterval(() => {
@@ -32,7 +71,11 @@ function startSpinner(message: string): NodeJS.Timeout {
     index = (index + 1) % FRAMES.length;
   }, 80);
 
-  return interval;
+  return {
+    stop(stopMessage, status = "success") {
+      stopSpinner(interval, stopMessage, status);
+    },
+  };
 }
 
 function stopSpinner(
@@ -46,29 +89,29 @@ function stopSpinner(
   process.stdout.write(`\r${color}${symbol} ${message}${COLORS.reset}\n`);
 }
 
-function hasCoverageScript(): boolean {
+function hasCoverageScript(deps: CliDeps): boolean {
   try {
-    const packageJson = JSON.parse(readFileSync("package.json", "utf-8"));
+    const packageJson = JSON.parse(deps.readFileSync("package.json", "utf-8").toString());
     return typeof packageJson.scripts?.coverage === "string";
   } catch {
     return false;
   }
 }
 
-async function runCoverage(): Promise<void> {
-  const spinner = startSpinner("Running coverage...");
+async function runCoverage(deps: CliDeps): Promise<void> {
+  const spinner = deps.startSpinner("Running coverage...");
 
   try {
-    await execFileAsync("npm", ["run", "coverage"]);
-    stopSpinner(spinner, "Coverage complete", "success");
+    await deps.execFile("npm", ["run", "coverage"]);
+    spinner.stop("Coverage complete", "success");
   } catch (error) {
-    stopSpinner(spinner, "Coverage failed", "error");
+    spinner.stop("Coverage failed", "error");
 
     if (error instanceof Error && "stderr" in error) {
-      const stderr = (error as { stderr: string }).stderr;
+      const stderr = (error as ExecFileException & { stderr?: string }).stderr;
 
       if (stderr) {
-        console.error(`${COLORS.red}${stderr}${COLORS.reset}`);
+        deps.error(`${COLORS.red}${stderr}${COLORS.reset}`);
       }
     }
 
@@ -76,53 +119,64 @@ async function runCoverage(): Promise<void> {
   }
 }
 
-async function main(): Promise<void> {
-  const options = parseArgs(process.argv.slice(2));
+export async function runCli(args: string[], deps: CliDeps = defaultDeps): Promise<number> {
+  const options = parseArgs(args);
 
-  if (hasCoverageScript()) {
-    await runCoverage();
+  if (hasCoverageScript(deps)) {
+    await runCoverage(deps);
   } else {
-    console.log(
+    deps.log(
       `${COLORS.yellow}ℹ No coverage script found; using existing coverage/coverage-final.json${COLORS.reset}`,
     );
   }
 
-  const spinner = startSpinner("Analyzing PR coverage...");
+  const spinner = deps.startSpinner("Analyzing PR coverage...");
 
   try {
-    const diffText = getRawDiff(options.base);
-    const changedLines = parseChangedLines(diffText);
-    const coverage = readCoverageFile(options.coverage);
+    const diffText = deps.getRawDiff(options.base);
+    const changedLines = deps.parseChangedLines(diffText);
+    const coverage = deps.readCoverageFile(options.coverage);
 
-    const projectRoot = getRepoRoot();
-    const normalizedChangedLines = normalizeChangedLines(changedLines, projectRoot);
-    const normalizedCoverage = normalizeCoverage(coverage, projectRoot);
+    const projectRoot = deps.getRepoRoot();
+    const normalizedChangedLines = deps.normalizeChangedLines(changedLines, projectRoot);
+    const normalizedCoverage = deps.normalizeCoverage(coverage, projectRoot);
 
-    const analysis = analyzeCoverage(normalizedChangedLines, normalizedCoverage);
-    stopSpinner(spinner, "Analysis complete", "success");
+    const analysis = deps.analyzeCoverage(normalizedChangedLines, normalizedCoverage);
+    spinner.stop("Analysis complete", "success");
 
-    printReport(analysis);
+    deps.printReport(analysis);
 
     if (analysis.coveragePercent < options.min) {
-      process.exit(1);
+      return 1;
     }
 
     const minBranches = options.minBranches ?? options.min;
     if (analysis.branchesTotal > 0 && analysis.branchPercent < minBranches) {
-      process.exit(1);
+      return 1;
     }
 
     const minFunctions = options.minFunctions ?? options.min;
     if (analysis.functionsTotal > 0 && analysis.functionPercent < minFunctions) {
-      process.exit(1);
+      return 1;
     }
 
-    process.exit(0);
+    return 0;
   } catch (error) {
-    stopSpinner(spinner, "Analysis failed", "error");
-    console.error(error instanceof Error ? error.message : "Unknown error");
-    process.exit(1);
+    spinner.stop("Analysis failed", "error");
+    deps.error(error instanceof Error ? error.message : "Unknown error");
+    return 1;
   }
 }
 
-main().catch(() => process.exit(1));
+export async function main(
+  args: string[] = process.argv.slice(2),
+  deps: CliDeps = defaultDeps,
+  exit: (code?: number) => void = process.exit,
+): Promise<void> {
+  const exitCode = await runCli(args, deps);
+  exit(exitCode);
+}
+
+if (process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url) {
+  main().catch(() => process.exit(1));
+}
