@@ -1,23 +1,29 @@
 {
   "name": "pr-coverage",
   "version": "1.0.0",
-  "description": "",
+  "description": "CLI that measures coverage of changed lines in pull requests using Vitest reports",
   "license": "ISC",
   "author": "",
   "type": "module",
   "bin": {
     "pr-coverage": "./dist/cli.js"
   },
-  "main": "index.js",
+  "main": "./dist/cli.js",
+  "files": ["dist"],
+  "keywords": ["vitest", "coverage", "pull-request", "cli"],
   "scripts": {
     "build": "tsc",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "tsx --test tests/**/*.test.ts",
+    "vitest": "vitest run",
+    "coverage": "vitest run --coverage"
   },
   "devDependencies": {
     "@types/node": "^26.0.0",
+    "@vitest/coverage-c8": "^0.29.8",
     "eslint": "^10.5.0",
     "prettier": "^3.8.4",
     "tsx": "^4.22.4",
-    "typescript": "^6.0.3"
+    "typescript": "^6.0.3",
+    "vitest": "^0.29.8"
   }
 }
