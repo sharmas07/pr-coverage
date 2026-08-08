@@ -33,13 +33,13 @@ The `test-pr2` branch has been merged into `main`. The project now implements th
 - Merged `test-pr2` into `main`
 - Resolved the README merge conflict
 - Updated stale unit tests to match the merged branch/function coverage model
-- Verified the test suite: 32 tests passing
+- Removed tracked `.DS_Store` and added it to `.gitignore`
+- Replaced `@vitest/coverage-c8` with `@vitest/coverage-v8`
+- Added CLI-level workflow tests for coverage execution, missing coverage files, thresholds, success, and `main()` exit behavior
+- Verified the test suite: 39 tests passing
 
 ## Remaining Review Items
 
-- Decide whether `.DS_Store` should remain tracked
-- Review whether `@vitest/coverage-c8` should be replaced with the current Vitest coverage provider
-- Add CLI-level tests around `process.exit`, `npm run coverage` execution, and missing coverage files
 - Consider using dependency injection for CLI orchestration to reduce process-level mocking in future tests
 - Verify behavior in a real fixture repository with an actual PR-style diff and coverage report
 
