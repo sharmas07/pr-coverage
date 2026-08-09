@@ -61,6 +61,24 @@ test("runCli runs npm coverage when package.json has a coverage script", async (
   assert.deepEqual(coverageCommand, ["npm", ["run", "coverage"]]);
 });
 
+test("runCli emits debug logs when --debug is set", async () => {
+  const logs: string[] = [];
+  const deps = makeDeps({
+    readFileSync: () => JSON.stringify({ scripts: { coverage: "vitest run --coverage" } }),
+    log: (message) => {
+      logs.push(message);
+    },
+  });
+
+  const exitCode = await runCli(["--debug"], deps);
+
+  assert.equal(exitCode, 0);
+  assert.ok(logs.some((message) => message.includes("[debug] cli started with args: [\"--debug\"]")));
+  assert.ok(logs.some((message) => message.includes("[debug] coverage step started")));
+  assert.ok(logs.some((message) => message.includes("[debug] analysis step started")));
+  assert.ok(logs.some((message) => message.includes("[debug] cli completed successfully")));
+});
+
 test("runCli returns failure when coverage file reading fails", async () => {
   let errorMessage = "";
   const deps = makeDeps({
@@ -76,6 +94,24 @@ test("runCli returns failure when coverage file reading fails", async () => {
 
   assert.equal(exitCode, 1);
   assert.equal(errorMessage, "coverage-final.json missing");
+});
+
+test("runCli emits debug logs when analysis fails", async () => {
+  const logs: string[] = [];
+  const deps = makeDeps({
+    readFileSync: () => JSON.stringify({ scripts: { coverage: "vitest run --coverage" } }),
+    readCoverageFile: () => {
+      throw new Error("coverage-final.json missing");
+    },
+    log: (message) => {
+      logs.push(message);
+    },
+  });
+
+  const exitCode = await runCli(["--debug"], deps);
+
+  assert.equal(exitCode, 1);
+  assert.ok(logs.some((message) => message.includes("[debug] analysis step failed")));
 });
 
 test("runCli returns failure when line coverage is below threshold", async () => {

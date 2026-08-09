@@ -1,6 +1,7 @@
 export interface CliOptions {
   base: string;
   coverage: string;
+  debug: boolean;
   min: number;
   minBranches?: number;
   minFunctions?: number;
@@ -10,6 +11,7 @@ export function parseArgs(args: string[]): CliOptions {
   const options: CliOptions = {
     base: "main",
     coverage: "coverage/coverage-final.json",
+    debug: false,
     min: 80,
   };
 
@@ -23,6 +25,8 @@ export function parseArgs(args: string[]): CliOptions {
     } else if (arg === "--coverage" && nextArg) {
       options.coverage = nextArg;
       i += 1;
+    } else if (arg === "--debug") {
+      options.debug = true;
     } else if (arg === "--min" && nextArg) {
       const parsedMin = Number(nextArg);
       options.min = Number.isNaN(parsedMin) ? 80 : parsedMin;

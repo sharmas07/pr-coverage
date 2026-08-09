@@ -98,14 +98,23 @@ function hasCoverageScript(deps: CliDeps): boolean {
   }
 }
 
-async function runCoverage(deps: CliDeps): Promise<void> {
+function debugLog(deps: CliDeps, enabled: boolean, message: string): void {
+  if (enabled) {
+    deps.log(`${COLORS.cyan}[debug] ${message}${COLORS.reset}`);
+  }
+}
+
+async function runCoverage(deps: CliDeps, debugEnabled: boolean): Promise<void> {
+  debugLog(deps, debugEnabled, "coverage step started");
   const spinner = deps.startSpinner("Running coverage...");
 
   try {
     await deps.execFile("npm", ["run", "coverage"]);
     spinner.stop("Coverage complete", "success");
+    debugLog(deps, debugEnabled, "coverage step completed");
   } catch (error) {
     spinner.stop("Coverage failed", "error");
+    debugLog(deps, debugEnabled, "coverage step failed");
 
     if (error instanceof Error && "stderr" in error) {
       const stderr = (error as ExecFileException & { stderr?: string }).stderr;
@@ -121,48 +130,84 @@ async function runCoverage(deps: CliDeps): Promise<void> {
 
 export async function runCli(args: string[], deps: CliDeps = defaultDeps): Promise<number> {
   const options = parseArgs(args);
+  debugLog(deps, options.debug, `cli started with args: ${JSON.stringify(args)}`);
+  debugLog(
+    deps,
+    options.debug,
+    `parsed options: ${JSON.stringify({
+      base: options.base,
+      coverage: options.coverage,
+      min: options.min,
+      minBranches: options.minBranches,
+      minFunctions: options.minFunctions,
+      debug: options.debug,
+    })}`,
+  );
 
+  debugLog(deps, options.debug, "checking for coverage script in package.json");
   if (hasCoverageScript(deps)) {
-    await runCoverage(deps);
+    debugLog(deps, options.debug, "coverage script found");
+    await runCoverage(deps, options.debug);
   } else {
+    debugLog(deps, options.debug, "coverage script not found");
     deps.log(
       `${COLORS.yellow}ℹ No coverage script found; using existing coverage/coverage-final.json${COLORS.reset}`,
     );
   }
 
+  debugLog(deps, options.debug, "analysis step started");
   const spinner = deps.startSpinner("Analyzing PR coverage...");
 
   try {
+    debugLog(deps, options.debug, `reading diff for base branch: ${options.base}`);
     const diffText = deps.getRawDiff(options.base);
+    debugLog(deps, options.debug, "parsing changed lines from diff");
     const changedLines = deps.parseChangedLines(diffText);
+    debugLog(deps, options.debug, `reading coverage file: ${options.coverage}`);
     const coverage = deps.readCoverageFile(options.coverage);
 
+    debugLog(deps, options.debug, "resolving repository root");
     const projectRoot = deps.getRepoRoot();
+    debugLog(deps, options.debug, "normalizing changed lines");
     const normalizedChangedLines = deps.normalizeChangedLines(changedLines, projectRoot);
+    debugLog(deps, options.debug, "normalizing coverage data");
     const normalizedCoverage = deps.normalizeCoverage(coverage, projectRoot);
 
+    debugLog(deps, options.debug, "running coverage analysis");
     const analysis = deps.analyzeCoverage(normalizedChangedLines, normalizedCoverage);
     spinner.stop("Analysis complete", "success");
+    debugLog(deps, options.debug, "analysis step completed");
 
+    debugLog(deps, options.debug, "printing report");
     deps.printReport(analysis);
 
     if (analysis.coveragePercent < options.min) {
+      debugLog(deps, options.debug, `line coverage below threshold: ${analysis.coveragePercent} < ${options.min}`);
       return 1;
     }
 
     const minBranches = options.minBranches ?? options.min;
     if (analysis.branchesTotal > 0 && analysis.branchPercent < minBranches) {
+      debugLog(deps, options.debug, `branch coverage below threshold: ${analysis.branchPercent} < ${minBranches}`);
       return 1;
     }
 
     const minFunctions = options.minFunctions ?? options.min;
     if (analysis.functionsTotal > 0 && analysis.functionPercent < minFunctions) {
+      debugLog(deps, options.debug, `function coverage below threshold: ${analysis.functionPercent} < ${minFunctions}`);
       return 1;
     }
 
+    debugLog(
+      deps,
+      options.debug,
+      `thresholds passed: line=${analysis.coveragePercent} branch=${analysis.branchPercent} function=${analysis.functionPercent}`,
+    );
+    debugLog(deps, options.debug, "cli completed successfully");
     return 0;
   } catch (error) {
     spinner.stop("Analysis failed", "error");
+    debugLog(deps, options.debug, "analysis step failed");
     deps.error(error instanceof Error ? error.message : "Unknown error");
     return 1;
   }

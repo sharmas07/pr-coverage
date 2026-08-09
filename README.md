@@ -18,6 +18,7 @@ npm install -g pr-coverage
 pr-coverage
 pr-coverage --base main
 pr-coverage --coverage coverage/coverage-final.json
+pr-coverage --debug
 pr-coverage --min 90
 pr-coverage --min-branches 85 --min-functions 90
 ```
@@ -31,6 +32,7 @@ If your project has an npm script named `coverage`, `pr-coverage` will run it fi
 |------|-------------|---------|
 | `--base` | Base branch to compare against | `main` (falls back to `master` if `main` is missing) |
 | `--coverage` | Path to `coverage-final.json` | `coverage/coverage-final.json` |
+| `--debug` | Print stage-by-stage debug logs while the CLI runs | `false` |
 | `--min` | Minimum required coverage percentage | `80` |
 | `--min-branches` | Minimum required branch coverage percentage when branch data exists | Uses `--min` |
 | `--min-functions` | Minimum required function coverage percentage when function data exists | Uses `--min` |
@@ -40,14 +42,15 @@ If your project has an npm script named `coverage`, `pr-coverage` will run it fi
 `pr-coverage` follows this runtime sequence:
 
 1. Parse the CLI flags
-2. Run `npm run coverage` when a `coverage` script exists in `package.json`
-3. Resolve the base branch and generate `git diff <base>...HEAD --unified=0`
-4. Parse changed source lines from the diff
-5. Read `coverage/coverage-final.json` or the path passed with `--coverage`
-6. Normalize file paths so diff paths and coverage paths line up
-7. Compare changed lines against coverage data
-8. Print the final report
-9. Exit `0` or `1` based on the configured thresholds
+2. If `--debug` is set, print a log line before and after each major step
+3. Run `npm run coverage` when a `coverage` script exists in `package.json`
+4. Resolve the base branch and generate `git diff <base>...HEAD --unified=0`
+5. Parse changed source lines from the diff
+6. Read `coverage/coverage-final.json` or the path passed with `--coverage`
+7. Normalize file paths so diff paths and coverage paths line up
+8. Compare changed lines against coverage data
+9. Print the final report
+10. Exit `0` or `1` based on the configured thresholds
 
 ## Output
 
