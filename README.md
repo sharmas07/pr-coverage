@@ -2,7 +2,9 @@
 
 CLI that measures coverage of changed lines in a pull request using an existing Vitest coverage report.
 
-For a deeper walkthrough of the code paths, parsing rules, and report flow, see [ARCHITECTURE.md](/Users/apple/projects/pr-coverage/ARCHITECTURE.md).
+For a deeper walkthrough of the code paths, parsing rules, and report flow, see [ARCHITECTURE.md](./ARCHITECTURE.md).
+
+For end-to-end manual CLI scenarios against a real Vitest repository, see [MANUAL_TESTING.md](./MANUAL_TESTING.md).
 
 ## Installation
 
@@ -74,13 +76,13 @@ src/api/auth.ts:19 (Missing branch coverage)
 
 ## Requirements
 
-- Vitest with `@vitest/coverage-c8` or another Istanbul-compatible reporter
+- Vitest with `@vitest/coverage-v8` or another Istanbul-compatible reporter
 - Coverage reporter configured to produce `coverage-final.json`
 - Git repository with the base branch available
 
 ## Architecture
 
-See [ARCHITECTURE.md](/Users/apple/projects/pr-coverage/ARCHITECTURE.md) for a detailed view of:
+See [ARCHITECTURE.md](./ARCHITECTURE.md) for a detailed view of:
 
 - command flow
 - diff parsing
@@ -117,7 +119,7 @@ import { defineConfig } from "vitest/config";
 export default defineConfig({
   test: {
     coverage: {
-      provider: "c8",
+      provider: "v8",
       reporter: ["json"],
       reportsDirectory: "./coverage",
     },
