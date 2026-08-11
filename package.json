@@ -20,6 +20,7 @@
   ],
   "scripts": {
     "build": "tsc",
+    "dev": "tsx src/cli.ts",
     "test": "tsx --test tests/**/*.test.ts",
     "vitest": "vitest run",
     "coverage": "vitest run --coverage"

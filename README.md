@@ -4,8 +4,6 @@ CLI that measures coverage of changed lines in a pull request using an existing 
 
 For a deeper walkthrough of the code paths, parsing rules, and report flow, see [ARCHITECTURE.md](./ARCHITECTURE.md).
 
-For end-to-end manual CLI scenarios against a real Vitest repository, see [MANUAL_TESTING.md](./MANUAL_TESTING.md).
-
 ## Installation
 
 ```bash
@@ -18,12 +16,13 @@ npm install -g pr-coverage
 pr-coverage
 pr-coverage --base main
 pr-coverage --coverage coverage/coverage-final.json
-pr-coverage --debug
 pr-coverage --min 90
 pr-coverage --min-branches 85 --min-functions 90
+pr-coverage --debug
 ```
 
 If your project has an npm script named `coverage`, `pr-coverage` will run it first to generate fresh coverage data before analyzing the report.
+Use `--debug` to print stage-by-stage logs while the CLI runs.
 
 
 ### Options

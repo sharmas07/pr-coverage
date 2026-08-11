@@ -325,6 +325,7 @@ describe("cli args", () => {
     expect(parseArgs([])).toEqual({
       base: "main",
       coverage: "coverage/coverage-final.json",
+      debug: false,
       min: 80,
     });
   });
@@ -333,6 +334,7 @@ describe("cli args", () => {
     expect(parseArgs(["--base", "develop", "--min", "90", "--min-branches", "85", "--min-functions", "95"])).toEqual({
       base: "develop",
       coverage: "coverage/coverage-final.json",
+      debug: false,
       min: 90,
       minBranches: 85,
       minFunctions: 95,
