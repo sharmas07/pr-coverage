@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { execFile, type ExecFileException } from "node:child_process";
-import { readFileSync } from "node:fs";
-import { pathToFileURL } from "node:url";
+import { readFileSync, realpathSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { getRawDiff, getRepoRoot } from "./git/diff.js";
 import { parseChangedLines } from "./git/parser.js";
@@ -222,6 +222,6 @@ export async function main(
   exit(exitCode);
 }
 
-if (process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url) {
+if (process.argv[1] && realpathSync(process.argv[1]) === fileURLToPath(import.meta.url)) {
   main().catch(() => process.exit(1));
 }
